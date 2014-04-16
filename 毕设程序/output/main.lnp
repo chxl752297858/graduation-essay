@@ -1,0 +1,8 @@
+".\output\STARTUP.obj",
+".\output\main.obj",
+".\output\LCD12864.obj",
+".\output\dht11.obj",
+".\output\timer.obj",
+".\output\gprs.obj" 
+TO ".\output\main" 
+PRINT(".\main.m51") RAMSIZE(256) 

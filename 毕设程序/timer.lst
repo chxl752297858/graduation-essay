@@ -1,0 +1,273 @@
+C51 COMPILER V9.01   TIMER                                                                 04/13/2014 00:06:37 PAGE 1   
+
+
+C51 COMPILER V9.01, COMPILATION OF MODULE TIMER
+OBJECT MODULE PLACED IN .\output\timer.obj
+COMPILER INVOKED BY: d:\Program Files\Keil51\Keil\C51\BIN\C51.EXE src\timer.c LARGE BROWSE DEBUG OBJECTEXTEND PRINT(.\ti
+                    -mer.lst) OBJECT(.\output\timer.obj)
+
+line level    source
+
+   1          /***********************************************************
+   2          酷学之家 http://simcom.taobao.com/
+   3          联系方式：15296811438 林工
+   4          *************************************************************/
+   5          
+   6          #include "systerm.h"
+   7          
+   8          
+   9          
+  10          volatile unsigned char data timer0_cnt = 0;
+  11          
+  12          volatile int data sec_cnt = 0;
+  13          volatile int data ms_cnt = 0;
+  14          
+  15          extern U8  U8T_data_H,U8T_data_L,U8RH_data_H,U8RH_data_L,U8checkdata;
+  16          extern unsigned char T_UP,T_DOWN,HR_UP,HR_DOWN;
+  17          extern char timer_flagss;
+  18          //sbit LED  = P3^0;
+  19          //sbit LED1  = P3^1;
+  20          
+  21          
+  22          
+  23           /***************串口打印温湿度值程序程序************************/
+  24          /*函数原型:UART_PutStringAndNumH(char *buf,unsigned int num,char *buf1,unsigned int num1)
+  25          /*函数功能:接收指定手机号码短信命令
+  26          /*输入参数:char *buf,unsigned int num,char *buf1,unsigned int num1
+  27                            
+  28          /*输出参数:无
+  29          /********************************************************************/
+  30          
+  31          /******************************************************************************
+  32           * UART_message: 
+  33           * 函数原型: - UART_message(unsigned char tup,unsigned char tdown,unsigned char hup,unsigned char hdown,un
+             -signed int num,unsigned int num1) 
+  34           * 函数功能: 
+  35           * 输入参数:   unsigned char tup,unsigned char tdown,unsigned char hup,unsigned char hdown,unsigned int nu
+             -m,unsigned int num1
+  36           * 输出参数: 
+  37           * 返回值: 
+  38           * 
+  39           * modification history
+  40           * --------------------
+  41           *    2014/04/12, ChenxianLong create this function
+  42           * 
+  43           ******************************************************************************/
+  44          void UART_message(unsigned char tup,unsigned char tdown,unsigned char hup,unsigned char hdown,unsigned int
+             - num,unsigned int num1)
+  45            {
+  46   1              unsigned char a[1],b[1],ta[1],tb[1],ha[1],hb[1];
+  47   1                
+  48   1                Uart1SendStr("t_up:");
+  49   1            ta[0] = '0'+tup/10;
+  50   1                ta[1] = '0'+tup%10;
+  51   1            Uart1SendHex(ta[0]);
+C51 COMPILER V9.01   TIMER                                                                 04/13/2014 00:06:37 PAGE 2   
+
+  52   1                Uart1SendHex(ta[1]);
+  53   1                Uart1SendHex('.');
+  54   1                
+  55   1                Uart1SendStr("t_down:");
+  56   1            tb[0] = '0'+tdown/10;
+  57   1                tb[1] = '0'+tdown%10;
+  58   1            Uart1SendHex(tb[0]);
+  59   1                Uart1SendHex(tb[1]);
+  60   1                Uart1SendHex('.');
+  61   1      
+  62   1                Uart1SendStr("h_up:");
+  63   1            ha[0] = '0'+hup/10;
+  64   1                ha[1] = '0'+hup%10;
+  65   1            Uart1SendHex(ha[0]);
+  66   1                Uart1SendHex(ha[1]);
+  67   1                Uart1SendHex('%');
+  68   1                Uart1SendHex('.');
+  69   1      
+  70   1                Uart1SendStr("h_down:");
+  71   1            hb[0] = '0'+hdown/10;
+  72   1                hb[1] = '0'+hdown%10;
+  73   1            Uart1SendHex(hb[0]);
+  74   1                Uart1SendHex(hb[1]);
+  75   1                 Uart1SendHex('%');
+  76   1                Uart1SendHex('.');
+  77   1                 
+  78   1                Uart1SendStr("temper:");
+  79   1            a[0] = '0'+num/10;
+  80   1                a[1] = '0'+num%10;
+  81   1      
+  82   1                      Uart1SendHex(a[0]);
+  83   1                      Uart1SendHex(a[1]);
+  84   1                      Uart1SendHex('.');
+  85   1                      
+  86   1                      Uart1SendStr("himitity:");
+  87   1                      b[0] = '0'+num1/10;
+  88   1                      b[1] = '0'+num1%10;
+  89   1      
+  90   1                 Uart1SendHex(b[0]);
+  91   1                 Uart1SendHex(b[1]);
+  92   1                 Uart1SendHex('%');
+  93   1                 Uart1SendHex('.');
+  94   1                 Uart1SendStr("\r\n");
+  95   1        }
+  96          
+  97          
+  98          /***************************初始化定时器0****************************/
+  99          /*函数原型:Timer0Init
+ 100          /*函数功能:初始化定时器0
+ 101          /*输入参数:无
+ 102          /*输出参数:无
+ 103          /********************************************************************/
+ 104          void Timer0Init(void)
+ 105          {
+ 106   1      
+ 107   1              TMOD|=0x01;                     //设置定时器0为工作方式1
+ 108   1              TH0=(65536-45872)/256;         //放入初值,11.0592M,50ms
+ 109   1              TL0=(65536-45872)%256;
+ 110   1      
+ 111   1              // 设置定时器0中断优先级(优先级1)
+ 112   1              IPH &= ~PT0H;
+ 113   1              PT0 = 1;
+C51 COMPILER V9.01   TIMER                                                                 04/13/2014 00:06:37 PAGE 3   
+
+ 114   1      
+ 115   1              EA=1;                           //开总中断
+ 116   1              ET0=1;                          //开定时器0中断
+ 117   1          TR0=1;                          //启动定时器0
+ 118   1      }
+ 119          
+ 120          
+ 121          /*------------------------------------------------
+ 122                              定时器初始化子程序
+ 123          ------------------------------------------------*/
+ 124          void Init_Timer1(void)
+ 125          {
+ 126   1       TMOD |= 0x10;    //使用模式1，16位定时器，使用"|"符号可以在使用多个定时器时不受影响 
+ 127   1       TH1=(65536-50000)%256;       //给定初值，这里使用定时器最大值从0开始计数一直到65535溢出
+ 128   1       TL1=(65536-50000)/256;
+ 129   1       EA=1;            //总中断打开
+ 130   1       ET1=1;           //定时器中断打开
+ 131   1       TR1=1;           //定时器开关打开
+ 132   1      }
+ 133          
+ 134          
+ 135          /***************************定时器0中断******************************/
+ 136          /*函数原型:Timer0
+ 137          /*函数功能:每50ms执行一次中断，中断内部重新赋值
+ 138          /*输入参数:无
+ 139          /*输出参数:无
+ 140          /********************************************************************/
+ 141          void timer0() interrupt 1
+ 142          {
+ 143   1              uchar i = 0;
+ 144   1              TH0=(65536-45872)/256;
+ 145   1              TL0=(65536-45872)%256;
+ 146   1      
+ 147   1      #ifdef UART1_DEBUG//发送数据用于调试。
+                              Uart1SendStr(DebugBuf_U2);
+                              for(i=0; i<MAXBUF; i++)
+                              {
+                                      DebugBuf_U2[i] = 0;     
+                              }
+                              Debug2RcvCnt = 0;
+              
+                              Uart2SendStr(DebugBuf_U1);
+                              for(i=0; i<MAXBUF; i++)
+                              {
+                                      DebugBuf_U1[i] = 0;     
+                              }
+                              Debug1RcvCnt = 0;
+              
+              #endif
+ 163   1      
+ 164   1              timer0_cnt++;
+ 165   1      
+ 166   1              if(timer0_cnt == 40)
+ 167   1              {
+ 168   2                      timer0_cnt = 0;
+ 169   2                      sec_cnt++;
+ 170   2              RH();  //一秒钟更新一次温湿度数据
+ 171   2              if((sec_cnt==60)&&(timer_flagss==0))//一分钟内连续检测到异常就发送继续发送
+ 172   2              {
+ 173   3              
+ 174   3               sec_cnt=0;
+ 175   3               timer_flagss=1;
+C51 COMPILER V9.01   TIMER                                                                 04/13/2014 00:06:37 PAGE 4   
+
+ 176   3              
+ 177   3              }
+ 178   2               #ifdef UART1_PRINT
+ 179   2                      //将接收到的数据放入DebugBuf_U1，在定时器内，DebugBuf_U1会被串口2发送给GSM模块。
+ 180   2                      //这样通过串口1发送到单片机的数据GSM模块就可以收到了，主要为了调试的方便。
+ 181   2           UART_message(T_UP,T_DOWN,HR_UP,HR_DOWN,U8T_data_H,U8RH_data_H);
+ 182   2              
+ 183   2      
+ 184   2               #endif
+ 185   2              }
+ 186   1                      
+ 187   1      }
+ 188          
+ 189          
+ 190           /*------------------------------------------------
+ 191                           定时器中断子程序
+ 192          ------------------------------------------------*/
+ 193          void Timer1_isr(void) interrupt 3 using 1
+ 194          {
+ 195   1       unsigned char count;
+ 196   1       TH1=(65536-50000)%256;       //给定初值，这里使用定时器最大值从0开始计数一直到65535溢出
+ 197   1       TL1=(65536-50000)/256;
+ 198   1       count++;
+ 199   1      if(count==20)
+ 200   1       {
+ 201   2          count=0;
+ 202   2      
+ 203   2      
+ 204   2       }
+ 205   1      }
+ 206          /***************************定时函数******************************/
+ 207          /*函数原型:void DelaySec(unsigned char sec)
+ 208          /*函数功能:是函数等待一段时间
+ 209          /*输入参数:sec，要等待的时间（秒）
+ 210          /*输出参数:无
+ 211          /********************************************************************/
+ 212          void DelaySec(unsigned char sec)
+ 213          {
+ 214   1              sec_cnt = 0;
+ 215   1              while(sec_cnt < sec);           
+ 216   1      }
+ 217          
+ 218          
+ 219          /******************************************************************************
+ 220           * DelayMs: 
+ 221           * 函数原型: - void DelayMs(unsigned char ms)
+ 222           * 函数功能: 
+ 223           * 输入参数: unsigned char ms
+ 224           * 输出参数: 无
+ 225           *  
+ 226           * 
+ 227           * modification history
+ 228           * --------------------
+ 229           *    2014/04/12, ChenxianLong create this function
+ 230           * 
+ 231           ******************************************************************************/
+ 232          void DelayMs(unsigned char ms)
+ 233          {
+ 234   1              ms_cnt = 0;
+ 235   1              while(ms_cnt < ms);             
+ 236   1      }
+ 237          
+C51 COMPILER V9.01   TIMER                                                                 04/13/2014 00:06:37 PAGE 5   
+
+ 238          
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =    673    ----
+   CONSTANT SIZE    =     49    ----
+   XDATA SIZE       =   ----      16
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =      5    ----
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =   ----    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)

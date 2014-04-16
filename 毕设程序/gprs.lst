@@ -1,0 +1,364 @@
+C51 COMPILER V9.01   GPRS                                                                  04/13/2014 00:06:37 PAGE 1   
+
+
+C51 COMPILER V9.01, COMPILATION OF MODULE GPRS
+OBJECT MODULE PLACED IN .\output\gprs.obj
+COMPILER INVOKED BY: d:\Program Files\Keil51\Keil\C51\BIN\C51.EXE src\gprs.c LARGE BROWSE DEBUG OBJECTEXTEND PRINT(.\gpr
+                    -s.lst) OBJECT(.\output\gprs.obj)
+
+line level    source
+
+   1          
+   2          #include "systerm.h"
+   3          
+   4          uchar GsmRcv[MAXRCV] = {0};
+   5          uchar DebugBuf_U2[MAXBUF] = {0};
+   6          uchar DebugBuf_U1[MAXBUF] = {0};
+   7          uchar GsmRcvCnt = 0;
+   8          uchar GsmAtFlag = 0;
+   9          uchar Debug2RcvCnt = 0;
+  10          uchar Debug1RcvCnt = 0;
+  11          
+  12          /***************************串口2初始化函数函数*****************************/
+  13          /*函数原型:char Uart2Init(char smod,char brtx12,unsigned char reload)
+  14          /*函数功能:初始化用于连接gprs的串口2 ,串口2只能设置为独立波特率提供波特率
+  15                                  并打开串口2中断和全局中断
+  16          /*输入参数: smod        s2smod位                        0/1
+  17                                  brtx12  brtx12位                        0/1
+  18                                  reload  reload寄存器数值        0-255
+  19          /*输出参数:     -1              s2smod位错误，没有写入0/1
+  20                                  -2              brtx12位错误，没有写入0/1
+  21                                  0
+  22          /********************************************************************/
+  23          char Uart2Init(char s2smod,char brtx12,unsigned char reload)
+  24          {
+  25   1              S2CON = 0X50;//8位可变波特率，无奇偶位
+  26   1              BRT     = reload;//设置独立波特率发生器波特率
+  27   1      
+  28   1              if(s2smod == 1)
+  29   1              {
+  30   2                      AUXR |= S2SMOD;   //S2SMOD = 1;//波特率倍速位
+  31   2              }
+  32   1              else if(s2smod == 0)
+  33   1              {
+  34   2                      AUXR &= (~S2SMOD);   //S2SMOD = 0;//取消波特率倍速位
+  35   2              }
+  36   1              else
+  37   1              {
+  38   2                      return -1;
+  39   2              }
+  40   1                      
+  41   1              if(brtx12 == 1)
+  42   1              {
+  43   2                      AUXR |= BRTx12;//BRTx12 = 1;1T模式      
+  44   2              }
+  45   1              else if(brtx12 == 0)
+  46   1              {
+  47   2                      AUXR &= (~BRTx12);//BRTx12 = 0;12T模式          
+  48   2              }
+  49   1              else
+  50   1              {
+  51   2                      return -2;
+  52   2              }               
+  53   1              AUXR |= BRTR;//开启波特率发生器
+  54   1      
+C51 COMPILER V9.01   GPRS                                                                  04/13/2014 00:06:37 PAGE 2   
+
+  55   1              //设置串口2中断优先级   
+  56   1              IP2H |= PS2H;           //设置串口2优先级为3(最高)
+  57   1              IP2 |= PS2;
+  58   1      
+  59   1              if (UART2_PRIO & 0x02)
+  60   1              {
+  61   2                      IP2H |= PS2H;
+  62   2              }
+  63   1              else
+  64   1              {
+  65   2                      IP2H &= ~PS2H;
+  66   2              }
+  67   1              if (UART2_PRIO & 0x01)
+  68   1              {
+  69   2                      IP2 |= PS2;
+  70   2              }
+  71   1              else
+  72   1              {
+  73   2                      IP2 &= ~PS2;
+  74   2              }       
+  75   1              
+  76   1                                                                                                                                                                              
+  77   1              IE2 |= ES2;//   ES2 = 1;           //允许串口2中断
+  78   1              EA = 1;    //开总中断
+  79   1              return 0;       
+  80   1      }
+  81          
+  82          
+  83          /***************************串口2发送函数函数************************/
+  84          /*函数原型:void Serial_Init(void)
+  85          /*函数功能:串口2发送函数，发送单一数据
+  86          /*输入参数:数据
+  87          /*输出参数:无
+  88          /********************************************************************/
+  89          void Uart2SendHex(uchar i)
+  90          {
+  91   1              S2BUF = i;//装入数据
+  92   1              while((S2CON & S2TI) == 0);
+  93   1              S2CON &= (~S2TI);//S2TI = 0;            
+  94   1      }
+  95          
+  96          /***************************串口2发送字符串函数**********************/
+  97          /*函数原型:void Uart2SendStr(char* data_at)
+  98          /*函数功能:串口2发送函数，发送字符串
+  99          /*输入参数:字符串指针
+ 100          /*输出参数:无
+ 101          /********************************************************************/
+ 102          void Uart2SendStr(char* data_at)
+ 103          {
+ 104   1      
+ 105   1              unsigned char cnt=0;
+ 106   1              ET0=0;//关闭定时器0                     
+ 107   1              while(*(data_at+cnt))   //判断一串数据是否结束
+ 108   1              {
+ 109   2                      S2BUF = *(data_at+cnt);//装入数据
+ 110   2                      while((S2CON & S2TI) == 0);
+ 111   2                      S2CON &= (~S2TI);//S2TI = 0;
+ 112   2                      cnt++;
+ 113   2      
+ 114   2              }
+ 115   1              ET0=1;//打开定时器0             
+ 116   1      }
+C51 COMPILER V9.01   GPRS                                                                  04/13/2014 00:06:37 PAGE 3   
+
+ 117          
+ 118          /***************************串口1初始化函数**********************/
+ 119          /*函数原型:char Uart1Init(char smod,char brtx12,unsigned char reload)
+ 120          /*函数功能:串口1初始化
+ 121          /*输入参数:     smod    smod位  0/1
+ 122                                  brtx12  brtx12位  0/1
+ 123                                  reload  reload寄存器数值  0-255
+ 124             
+ 125          /*输出参数:     -1              smod位错误，没有写入0/1
+ 126                                  -2              brtx12位错误，没有写入0/1
+ 127                                  0
+ 128          /*备注：串口设置位独立波特率提供波特率，和串口2使用同一个波特率，也可以使用定时器1来提供波特率
+ 129          /********************************************************************/
+ 130          char Uart1Init(char smod,char brtx12,unsigned char reload)
+ 131          {
+ 132   1              SCON =  0X50;//8位可变波特率，无奇偶位(SM0=0,SM1=1),使能串口接收模块(REN=1)
+ 133   1              BRT     = reload;//设置独立波特率发生器波特率
+ 134   1      
+ 135   1              if(smod == 1)
+ 136   1              {
+ 137   2                      PCON |= SMOD;   //SMOD = 1;//波特率倍速位
+ 138   2              }
+ 139   1              else if(smod == 0)
+ 140   1              {
+ 141   2                      PCON &= (~SMOD);   //SMOD = 0;//取消波特率倍速位
+ 142   2              }
+ 143   1              else
+ 144   1              {
+ 145   2                      return -1;
+ 146   2              }
+ 147   1                      
+ 148   1              if(brtx12 == 1)
+ 149   1              {
+ 150   2                      AUXR |= BRTx12;//BRTx12 = 1;1T模式      
+ 151   2              }
+ 152   1              else if(brtx12 == 0)
+ 153   1              {
+ 154   2                      AUXR &= (~BRTx12);//BRTx12 = 0;12T模式          
+ 155   2              }
+ 156   1              else
+ 157   1              {
+ 158   2                      return -2;
+ 159   2              }
+ 160   1              
+ 161   1              AUXR |= S1BRS;//串口1设置为使用独立波特率发生器                                                                         
+ 162   1              AUXR |= BRTR;//开启波特率发生器
+ 163   1              
+ 164   1              //设置串口1中断优先级
+ 165   1              if (UART1_PRIO & 0x02)
+ 166   1              {
+ 167   2                      IPH |= PSH;
+ 168   2              }
+ 169   1              else
+ 170   1              {
+ 171   2                      IPH &= ~PSH;
+ 172   2              }
+ 173   1              if (UART1_PRIO & 0x01)
+ 174   1              {
+ 175   2                      PS = 1;                 
+ 176   2              }
+ 177   1              else
+ 178   1              {
+C51 COMPILER V9.01   GPRS                                                                  04/13/2014 00:06:37 PAGE 4   
+
+ 179   2                      PS = 0;
+ 180   2              }                                                                       
+ 181   1                                                                                              
+ 182   1              ES = 1;    //开串口中断
+ 183   1              EA = 1;    //开总中断
+ 184   1              return 0;       
+ 185   1      }
+ 186          
+ 187          /***************************串口1发送函数**********************/
+ 188          /*函数原型:void Uart1SendHex(char i)
+ 189          /*函数功能:串口1发送函数
+ 190          /*函数功能:串口1发送函数，发送单一数据
+ 191          /*输入参数:数据
+ 192          /*输出参数:无
+ 193          /**************************************************************/
+ 194          void Uart1SendHex(char i)
+ 195          {
+ 196   1              TI = 0; //清空发送完中断请求标志位
+ 197   1              SBUF = i;  //将数据放入寄存器发送
+ 198   1              while(TI == 0);//等待发送完毕，发送完毕 TI == 1
+ 199   1              TI = 0; //清空发送完中断请求标志位
+ 200   1      }
+ 201          
+ 202          /***************************串口1发送字符串函数**********************/
+ 203          /*函数原型:void Uart1SendStr(char* data_at)
+ 204          /*函数功能:串口1发送函数，发送字符串
+ 205          /*输入参数:字符串指针
+ 206          /*输出参数:无
+ 207          /********************************************************************/
+ 208          void Uart1SendStr(char* at)
+ 209          {
+ 210   1              unsigned char cnt=0;
+ 211   1              ET0=0;//关闭定时器0
+ 212   1              while(*(at+cnt))        //判断一串数据是否结束
+ 213   1              {
+ 214   2                      SBUF=*(at+cnt); //发送数据
+ 215   2                      while(TI==0);   //查询发送是否结束
+ 216   2                      TI=0;   //清除发送一标志位
+ 217   2                      cnt++;  //准备发送一个数据
+ 218   2              }
+ 219   1              ET0=1;//打开定时器0             
+ 220   1      }
+ 221          
+ 222          /***************************串口1发送接收中断函数********************/
+ 223          /*函数原型:void Uart1InterruptReceive(void) interrupt 4
+ 224          /*函数功能:串口2发送接收中断函数
+ 225          /*输入参数:无
+ 226          /*输出参数:无
+ 227          /*备注：接收函数内部不可以放入其他的中断或者发送函数，否则影响接收数据
+ 228          /********************************************************************/
+ 229          void Uart1InterruptReceive(void) interrupt 4
+ 230          {
+ 231   1              char tmp = 0;
+ 232   1              if(RI)
+ 233   1              {
+ 234   2      
+ 235   2                      ES=0;//关串行口中断
+ 236   2                      RI=0;//接收中断信号清零，表示将继续接收
+ 237   2                      tmp = SBUF;//接收数据
+ 238   2      
+ 239   2      #ifdef UART1_DEBUG
+                              //将接收到的数据放入DebugBuf_U1，在定时器内，DebugBuf_U1会被串口2发送给GSM模块。
+C51 COMPILER V9.01   GPRS                                                                  04/13/2014 00:06:37 PAGE 5   
+
+                              //这样通过串口1发送到单片机的数据GSM模块就可以收到了，主要为了调试的方便。
+                              DebugBuf_U1[Debug1RcvCnt] = tmp;
+                              Debug1RcvCnt++;
+                              if(Debug1RcvCnt>=MAXBUF-1)
+                              {
+                                      Debug1RcvCnt = 0;       
+                              }
+              #endif
+ 249   2      
+ 250   2      
+ 251   2              }       
+ 252   1      }
+ 253          
+ 254          /***************************串口2发送接收中断函数**********************/
+ 255          /*函数原型:void Uart2InterruptReceive(void) interrupt 8
+ 256          /*函数功能:串口2发送接收中断函数
+ 257          /*输入参数:无
+ 258          /*输出参数:无
+ 259          /*备注：接收函数内部不可以放入其他的中断或者发送函数，否则影响接收数据
+ 260                          用于接收GPRS模块传输来的数据，将数据保存到GsmRcv[],在函数中使用strstr判断数据。
+ 261          /********************************************************************/
+ 262          void Uart2InterruptReceive(void) interrupt 8
+ 263          {
+ 264   1              unsigned char tmp = 0;
+ 265   1              uchar i = 0;
+ 266   1      
+ 267   1              IE2 &= (~ES2);//关闭串口2中断//ES2 = 0;
+ 268   1              if(S2CON & S2RI)        //if(S2RI == 1)
+ 269   1              {
+ 270   2      
+ 271   2                      S2CON &= (~S2RI);//S2RI = 0;
+ 272   2                      tmp = S2BUF;
+ 273   2      
+ 274   2      #ifdef UART1_DEBUG
+                              //将接收到的数据放入DebugBuf_U2，在定时器内，DebugBuf_U2会被串口1发送给PC机。
+                              //这样GSM发送给单片机的数据也可以在电脑上观察到了。
+                              DebugBuf_U2[Debug2RcvCnt] = tmp;
+                              Debug2RcvCnt++;
+                              if(Debug2RcvCnt>=MAXBUF-1)
+                              {
+                                      Debug2RcvCnt = 0;       
+                              }
+              #endif
+ 284   2                                      
+ 285   2                      GsmRcv[GsmRcvCnt] = tmp;
+ 286   2                      GsmRcvCnt++;
+ 287   2      
+ 288   2                      if(GsmRcvCnt > MAXRCV)
+ 289   2                      {
+ 290   3                              GsmRcvCnt = 0;
+ 291   3                      }
+ 292   2                      
+ 293   2              }
+ 294   1      
+ 295   1              IE2 |= ES2;//ES2 = 1;
+ 296   1      }
+ 297          
+ 298          
+ 299          /***************************GPRS接收缓冲数据初始化函数***************/
+ 300          /*函数原型:void CleanGsmRcv(void)
+ 301          /*函数功能:将GsmRcv[]数据清除，并且使缓冲指针移到第一位。
+ 302          /*输入参数:无
+C51 COMPILER V9.01   GPRS                                                                  04/13/2014 00:06:37 PAGE 6   
+
+ 303          /*输出参数:无
+ 304          /********************************************************************/
+ 305          void CleanGsmRcv(void)
+ 306          {
+ 307   1              uchar i = 0;
+ 308   1              for(i=0; i<=MAXRCV; i++)
+ 309   1              {
+ 310   2                      GsmRcv[i] = 0;  
+ 311   2              }
+ 312   1      
+ 313   1              GsmRcvCnt = 0;  
+ 314   1      }
+ 315          /***************************GPRS缓冲数据握手函数***************/
+ 316          /*函数原型:bit Hand(unsigned char *a)
+ 317          /*函数功能:判断收到的数据是否出现判断的数据。
+ 318          /*输入参数:判断出现的数据
+ 319          /*输出参数:     1:出现了判断的数据
+ 320                                  0:没有出现判断的数据
+ 321          /********************************************************************/
+ 322          bit Hand(unsigned char *a)
+ 323          { 
+ 324   1          if(strstr(GsmRcv,a)!=NULL)
+ 325   1                  return 1;
+ 326   1              else
+ 327   1                      return 0;
+ 328   1      }
+ 329          
+ 330          
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =    422    ----
+   CONSTANT SIZE    =   ----    ----
+   XDATA SIZE       =    404      10
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =   ----    ----
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =   ----    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)
